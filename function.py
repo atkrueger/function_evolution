@@ -1,3 +1,4 @@
+#code updated to use python 3.8
 import random
 import math
 import time
@@ -8,12 +9,12 @@ import time
 
 #helper functions
 
-def select_random(list, exclusions=None):
+def select_random(vector, exclusions=None):
 	if exclusions is None:
-		return list[random.randint(0,len(list)-1)]
+		return vector[random.randint(0,len(vector)-1)]
 	else:
 		new_list = []
-		for o in list:
+		for o in vector:
 			if o not in exclusions:
 				new_list.append(o)
 			#else:
@@ -22,99 +23,101 @@ def select_random(list, exclusions=None):
 		return new_list[random.randint(0,len(new_list)-1)]
 
 
-def mean(l):
+def mean(vector):
 	#calculates the mean of the list
-	sum = 0.0 
-	for i in l:
+	sum = 0.0
+	n = len(vector)
+	for i in vector:
 		sum+=i
-	return sum / len(l)
+	return sum / n
 
-def covariance(l1, l2):
+def covariance(vector1, vector2):
 	#calculates the covariance of two lists of numbers
 	#should throw an error if the lists are not the same length
-	mean1 = mean(l1)
-	mean2 = mean(l2)
-	diffs = []
-	for i in xrange(len(l1)):
-		diffs.append((l1[i]-mean1)*(l2[i]-mean2))
-	return mean(diffs) #assumes all observations occur with equal probability
+	mean1 = mean(vector1)
+	mean2 = mean(vector2)
+	n = len(vector1)
+	sum = 0.0
+	for i in range(n):
+		sum+= (vector1[i] - mean1) * (vector2[i] - mean2)
+	return sum / n
 	
-def stdev(l):
+def variance(vector):
 	#returns the standard deviation of a list
-	m = mean(l)
-	n = len(l)
+	mu = mean(vector)
+	n = len(vector)
 	sum_sq_diffs=0.0
 	try:
-		for i in l:
-			sum_sq_diffs+=(((i-m)**2)/n)
-		return sum_sq_diffs **0.5
+		for i in vector:
+			sum_sq_diffs+=((i-mu)**2)
+		return sum_sq_diffs / n
 	except OverflowError:
 		return 999999
 
+def stdev(vector):
+	return variance(vector)**(0.5)
 
-def correlation(l1,l2):
-	#returns correlation between l1 and l2
+def correlation(vector1,vector2):
+	#returns correlation between vector1 and vector2
 	try:
-		return covariance(l1,l2)/(stdev(l1)*stdev(l2))
+		return covariance(vector1,vector2)/(stdev(vector1)*stdev(vector2))
 	except ZeroDivisionError:
 		return 0 
 		#returns no correlation if the standard deviation of one of them is zero
 
 
-def meanDeviation(l1, l2):
+def meanDeviation(vector1, vector2):
 	#calculates mean deviation between the two 
 	#sum of absolute value of differences
 	sum=0.0
-	n = len(l1)
-	for i in xrange(n):
-		sum+= abs(l1[i] - l2[i])
+	n = len(vector1)
+	for i in range(n):
+		sum+= abs(vector1[i] - vector2[i])
 	return sum  / n
 
 class FitnessTester(object):
 
 	def __init__(self, goal_func, start, stop, tests):
 	#class deisgned to efficiently test the fitness of a function
-	# function is more fit the more:
-	# 1. closely it is correlated with the goal_func (high absolute value of correl)
-	# 2. mean difference between test_func and goal_func
-	# 3. quickly the function completes
+	# function is more fit the:
+	# 1. more closely it is correlated with the goal_func (high absolute value of correl)
+	# 2. smaller the mean difference between test_func and goal_func
+	# 3. shorter the completion time
 	#measures this fitness over range of inputs from start-stop, num tests
 		self.interval = (stop - start) / tests
 		self.start = start
 		self.stop = stop
 		self.tests = tests
 
-		self.input = map(lambda x: start + (x*self.interval), xrange(tests))
-		self.goal_output = map(goal_func, self.input)
+		self.input = list(map(lambda x: start + (x*self.interval), range(tests)))
+		self.goal_output = list(map(goal_func, self.input))
 
-	def correlOnly(self,test_func):
-		#returns correlation between test_func output and goal_func output
-		test_output = map(test_func, self.input)
-		return correlation(test_output, self.goal_output)
 
 	def fitness(self, test_func):
 		
 		#calculate test function output and measure duration
-		start = time.clock()
-		test_output = map(test_func, self.input)
-		duration = time.clock() - start
+		start = time.time()
+		test_output = list(map(test_func, self.input))
+		duration = time.time() - start
 
 		#measure correlation and mean deviation between test function output and goal function output
 		corr = correlation(test_output, self.goal_output)
 
 		mean_dev =meanDeviation(test_output, self.goal_output)
 
-
 		#now, how to weight the results
-		return (duration, corr, mean_dev)
+		return  Fitness(duration, corr, mean_dev)
 
-	def rankFitness(self, test_funcs):
-		#test_funcs is a list of functions to have fitness assigned
-		fitness = map(self.fitness, test_funcs)
-		#print fitness
-		#now fitness has same length as test_funcs
-		#each element of fitness is a tuple with 3 elements, duration, corr, and mean_dev
+class Fitness(object):
 
+	def __init__(self, dur, corr, meandev):
+		self.duration = dur
+		self.correlation = corr
+		self.mean_deviation = meandev
+
+
+	def printSelf(self):
+		print("Corr: " + str(self.correlation) + ", MeanDev: " + str(self.mean_deviation) + ", Duration: " + str(self.duration) + "s")
 
 
 class Function(object):
@@ -139,7 +142,7 @@ class Function(object):
 		stackString = ""
 
 		loop_num = 0 #for assigning loop_ids
-		for i in xrange(len(self.stack)):
+		for i in range(len(self.stack)):
 
 			#1. assign tab structure
 			if(i==0):
@@ -175,8 +178,8 @@ class Function(object):
 			exec(self.sfunc) #creates the dummy function 
 			self.func = dummy #assigns self.func to that dummy function
 		except SystemError as e:
-			print "Following function threw a SystemError:" + str(e)
-			print self.sfunc
+			print ("Following function threw a SystemError:" + str(e))
+			print (self.sfunc)
 			self.func = lambda x:  88888
 		
 
@@ -245,7 +248,7 @@ class Function(object):
 
 		#goes through the stack and flips order
 		mutations = 0
-		for i in xrange(len(self.stack)):
+		for i in range(len(self.stack)):
 			if i !=0:
 				if p(rate):
 					mutations+=try_swap(i)
@@ -262,7 +265,7 @@ class Function(object):
 			mutations +=self.mutateOrder(0.2) #when mutating order of stack, flip positions 20% of time
 
 		#2. Stackable.mutate(rate)
-		for i in xrange(len(self.stack)):
+		for i in range(len(self.stack)):
 			if random.random() <= 0.3:
 				mutations+=self.stack[i].mutate(0.3)
 		
@@ -318,17 +321,18 @@ class Assignment(Stackable):
 		#self.tabs = 2 #default value
 		#initiate values
 		self.num_vars = num_vars
-		self.receiver_index = select_random([i for i in xrange(self.num_vars)])
+		self.receiver_index = select_random([i for i in range(self.num_vars)])
 		self.t1_type = select_random(self.VALID_T1_TYPES)
-		self.t1_index = select_random([i for i in xrange(self.num_vars)])
+		self.t1_index = select_random([i for i in range(self.num_vars)])
 		self.operator = select_random(self.VALID_OPERATORS)
 		self.t2_type = select_random(self.VALID_T2_TYPES)
 		self.t2_index = random.randint(0, self.num_vars-1)
 		self.t2_constant = random.uniform(self.VALID_T2_RANGE[0],self.VALID_T2_RANGE[1])
+		self.tabs=0 # default value
 		
 
 	def genString(self):
-		tabs = "\n" + "\t"*self.tabs
+		tabs = "\n" + "\t" * self.tabs
 		r = "x[" + str(self.receiver_index) + "]"
 		a = "="
 
@@ -362,13 +366,13 @@ class Assignment(Stackable):
 		mutations = 0
 		#excluding current values from options to ensure a real mutation
 		if p(rate):
-			self.receiver_index = select_random([i for i in xrange(self.num_vars)],[self.receiver_index])
+			self.receiver_index = select_random([i for i in range(self.num_vars)],[self.receiver_index])
 			mutations+=1
 		if p(rate):
 			self.t1_type = select_random(self.VALID_T1_TYPES, [self.t1_type])
 			mutations+=1
 		if p(rate):
-			self.t1_index = select_random([i for i in xrange(self.num_vars)],[self.t1_index])
+			self.t1_index = select_random([i for i in range(self.num_vars)],[self.t1_index])
 			mutations+=1
 		if p(rate):
 			self.operator = select_random(self.VALID_OPERATORS, [self.operator])
@@ -377,7 +381,7 @@ class Assignment(Stackable):
 			self.t2_type = select_random(self.VALID_T2_TYPES, [self.t2_type])
 			mutations+=1
 		if p(rate):
-			self.t2_index = select_random([i for i in xrange(self.num_vars)],[self.t2_index])
+			self.t2_index = select_random([i for i in range(self.num_vars)],[self.t2_index])
 			mutations+=1
 		if p(rate):
 			self.t2_constant = random.uniform(self.VALID_T2_RANGE[0],
@@ -412,6 +416,8 @@ class condStatement(Stackable):
 		self.t2_index = random.randint(0,self.num_vars-1)
 		self.t2_constant = random.uniform(self.VALID_T2_RANGE[0], self.VALID_T2_RANGE[1])
 		self.type = select_random(self.VALID_TYPES)
+		self.tabs = 0 # default value
+		self.loop_id = 0 # default value
 		#self.mutate(1) #select random values for all subcomponents
 		
 
@@ -426,7 +432,7 @@ class condStatement(Stackable):
 
 		mutations =0
 		if p(rate):
-			self.t1_index = select_random([i for i in xrange(self.num_vars)],[self.t1_index])
+			self.t1_index = select_random([i for i in range(self.num_vars)],[self.t1_index])
 			mutations+=1
 		if p(rate):
 			self.operator = select_random(self.VALID_OPERATORS, [self.operator])
@@ -435,7 +441,7 @@ class condStatement(Stackable):
 			self.t2_type = select_random(self.VALID_T2_TYPES, [self.t2_type])
 			mutations+=1
 		if p(rate):
-			self.t2_index = select_random([i for i in xrange(self.num_vars)],[self.t2_index])
+			self.t2_index = select_random([i for i in range(self.num_vars)],[self.t2_index])
 			mutations+=1
 		if p(rate):
 			self.t2_constant = random.uniform(self.VALID_T2_RANGE[0], self.VALID_T2_RANGE[1])
